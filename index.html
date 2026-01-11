@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; }
         .typing-indicator span {
             display: inline-block;
             width: 4px;
@@ -24,15 +24,13 @@
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1); }
         }
-        /* 隐藏滚动条但保留功能 */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
     <script>
-        // 关键修复：防止 process 未定义导致的崩溃
         window.process = window.process || { env: {} };
     </script>
-    <script type="importmap">
+<script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
@@ -47,7 +45,6 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-    <!-- 移除绝对路径 / ，使用相对路径 index.tsx 以适配 GitHub Pages 子目录 -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>

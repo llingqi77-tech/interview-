@@ -1,16 +1,13 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, Character, FeedbackData } from "../types";
 import { SYSTEM_PROMPT_BASE } from "../constants";
 
-/**
- * Generate AI character reply based on discussion history.
- */
 export async function generateAIReply(
   character: Character,
   topic: string,
   jobTitle: string,
-  history: Message[]
+  history: Message[],
+  phase: string
 ): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
@@ -18,97 +15,108 @@ export async function generateAIReply(
       .replace('{topic}', topic)
       .replace('{characterName}', character.name)
       .replace('{characterRole}', character.role)
-      .replace('{characterPersonality}', character.personality)}
+      .replace('{characterPersonality}', character.personality)
+      .replace('{phase}', phase)}
     
-    最近讨论流：
-    ${history.slice(-5).map(m => `${m.senderName}: ${m.content}`).join('\n')}
+    最近讨论历史：
+    ${history.slice(-6).map(m => `${m.senderName}: ${m.content}`).join('\n')}
     
-    请立刻发表你的言论（纯文本，严禁Markdown）：
+    请发表你的言论：
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        temperature: 0.8,
-        topP: 0.9,
-      }
-    });
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      temperature: 0.8,
+      topP: 0.9,
+    }
+  });
 
-    return response.text?.trim() || "我们需要加快进度了。";
-  } catch (error: any) {
-    console.error("Gemini Reply Error:", error);
-    return "（正在思考中...）";
-  }
+  return response.text?.trim() || "时间紧迫，我们必须尽快达成共识。";
 }
 
-/**
- * Generate a structured discussion topic.
- */
 export async function generateTopic(company: string, jobTitle: string): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `
-    你现在是${company}的高级资深面试官。请为【${jobTitle}】岗位设计一个高质量的群面案例讨论题。
-    要求格式非常专业，必须包含以下几个模块，并用换行分隔：
+  const prompt = `为${company}的${jobTitle}岗位设计一个高质量群面题。
+要求分为：
+【背景】行业背景与现状
+【任务】核心解决问题
+【要求】约束条件
+【时间分配】各环节建议时长
 
-    【题目背景】：详细说明业务背景或社会背景。
-    【核心任务】：明确列出需要小组讨论解决的问题。
-    【讨论要求】：说明讨论的约束条件（如角色限制、资源限制等）。
-    【时间建议】：建议个人阅读（3分钟）、自由讨论（15-20分钟）、总结陈词（3分钟）。
+禁止使用Markdown。请直接用纯文字分段输出。`;
 
-    注意：请直接输出文字内容，不要使用 Markdown 标题符号（如 #）或加粗符号（如 *），仅使用换行符来区分段落。
-  `;
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+  });
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-    });
-
-    return response.text?.replace(/\*|#|`|>/g, '').trim() || "请手动输入讨论题目。";
-  } catch (error: any) {
-    console.error("Gemini Topic Error:", error);
-    throw error;
-  }
+  return response.text?.replace(/[*#`>]/g, '').trim() || "题目生成失败，请手动输入。";
 }
 
-/**
- * Generate comprehensive feedback.
- */
 export async function generateFeedback(
   topic: string,
   jobTitle: string,
   history: Message[]
 ): Promise<FeedbackData> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `分析以下群面记录，针对应聘【${jobTitle}】的【用户】给出评分和建议：
-        题目：${topic}
-        记录：${history.map(m => `${m.senderName}: ${m.content}`).join('\n')}
-        按JSON格式返回评分、时机评价、结构贡献、抗压表现、3条建议。`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            timing: { type: Type.STRING },
-            voiceShare: { type: Type.NUMBER },
-            structuralContribution: { type: Type.STRING },
-            interruptionHandling: { type: Type.STRING },
-            overallScore: { type: Type.NUMBER },
-            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["timing", "voiceShare", "structuralContribution", "interruptionHandling", "overallScore", "suggestions"]
-        }
-      }
-    });
+  
+  const userMessages = history.filter(m => m.senderId === 'user');
+  const totalMessages = history.length;
+  const userCount = userMessages.length;
+  const voiceShare = Math.round((userCount / totalMessages) * 100) || 0;
 
-    return JSON.parse(response.text || "{}");
-  } catch (error: any) {
-    console.error("Gemini Feedback Error:", error);
-    throw error;
+  const prompt = `作为专业面试官，请深度分析以下讨论中【用户】的表现。
+岗位：${jobTitle}
+题目：${topic}
+全场对话记录：
+${history.map(m => `${m.senderName}: ${m.content}`).join('\n')}
+
+评估维度：
+1. **发言质量**：分析用户观点是否切中题目核心要害，是否提供了独特的洞察。
+2. **结构贡献**：用户是否在确立框架、归纳共识、化解冲突上起到关键作用。
+3. **时机掌握**：是否在合适的时机切入，发言是否过于碎片化。
+4. **总结表现**：如果用户在最后阶段做了总结陈词，请给予高权重加分。
+5. **抗压能力**：在被抢话或质疑时的反应。
+
+请严格按 JSON 格式返回。`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          timing: { type: Type.STRING, description: "发言时机精准度分析" },
+          voiceShare: { type: Type.NUMBER, description: "模型计算的话语权百分比" },
+          structuralContribution: { type: Type.STRING, description: "对讨论框架和进展的贡献评估" },
+          interruptionHandling: { type: Type.STRING, description: "在冲突和高压下的表现" },
+          overallScore: { type: Type.NUMBER, description: "综合评分（0-100）" },
+          suggestions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5条具体改进建议" }
+        },
+        required: ["timing", "voiceShare", "structuralContribution", "interruptionHandling", "overallScore", "suggestions"]
+      }
+    }
+  });
+
+  // Fix: Safe access to response text before parsing JSON
+  const jsonStr = response.text?.trim();
+  if (!jsonStr) {
+    return {
+      timing: "评估过程中未能获取到 AI 分析结果。",
+      voiceShare: voiceShare,
+      structuralContribution: "无法评价结构化贡献。",
+      interruptionHandling: "无法评价抗压表现。",
+      overallScore: 60,
+      suggestions: ["建议再次提交评估或检查网络连接。"]
+    };
   }
+
+  const feedback = JSON.parse(jsonStr);
+  // 注入实际计算的发言占比
+  feedback.voiceShare = voiceShare;
+  return feedback;
 }
