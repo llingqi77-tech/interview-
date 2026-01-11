@@ -4,44 +4,17 @@ import { Message, Character, FeedbackData } from "../types";
 import { SYSTEM_PROMPT_BASE } from "../constants";
 
 /**
- * 安全地获取 API Key。
- * 适配 Vercel 环境：优先读取 API_KEY，回退到 VITE_API_KEY。
- * 注意：在 Vercel 部署设置中，请确保变量名为 VITE_API_KEY。
+ * Generate AI character reply based on discussion history.
+ * Uses gemini-3-flash-preview for real-time discussion speed.
  */
-const getApiKey = (): string => {
-  // 尝试从不同的环境对象中获取
-  const key = 
-    // @ts-ignore
-    (typeof process !== 'undefined' && (process.env.API_KEY || process.env.VITE_API_KEY)) ||
-    // @ts-ignore
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_KEY) ||
-    "";
-    
-  if (!key) {
-    console.warn(
-      "【配置提醒】未检测到 API Key。请确保在 Vercel 的 Environment Variables 中添加了 VITE_API_KEY 变量，并且值是以 'AIza' 开头的字符串。"
-    );
-  } else if (key.startsWith('{')) {
-    console.error(
-      "【凭据错误】检测到疑似 Service Account JSON。Gemini SDK 需要的是 API Key（以 AIza 开头），请去 Google Cloud Console 生成正确的 API Key。"
-    );
-  }
-  
-  return key;
-};
-
 export async function generateAIReply(
   character: Character,
   topic: string,
   jobTitle: string,
   history: Message[]
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) return "系统配置错误：未找到 API Key。";
-
-  // 每次请求动态创建实例，确保使用最新的环境变量
-  const ai = new GoogleGenAI({ apiKey });
-  
+  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
     ${SYSTEM_PROMPT_BASE.replace('{jobTitle}', jobTitle)
       .replace('{topic}', topic)
@@ -65,20 +38,21 @@ export async function generateAIReply(
       }
     });
 
+    // Access .text property directly (not a method)
     return response.text?.trim() || "我们需要加快进度了。";
   } catch (error: any) {
     console.error("Gemini Reply Error:", error);
-    // 针对常见的权限/密钥错误给出更直观的提示
-    if (error.message?.includes("API_KEY_INVALID")) return "（AI 密钥无效，请联系管理员检查配置）";
     return "（正在思考中...）";
   }
 }
 
+/**
+ * Generate a discussion topic for the group interview simulation.
+ * Uses gemini-3-flash-preview for quick generation.
+ */
 export async function generateTopic(company: string, jobTitle: string): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API_KEY_MISSING");
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `扮演${company}面试官，出1个${jobTitle}岗位的群面案例题。只输出题目内容。严禁任何Markdown标记（不要加粗、不要列表、不要标题）。直接输出一段或几段文字。`;
 
   try {
@@ -87,6 +61,7 @@ export async function generateTopic(company: string, jobTitle: string): Promise<
       contents: prompt,
     });
 
+    // Access .text property directly (not a method)
     return response.text?.replace(/\*|#|`|>/g, '').trim() || "请手动输入讨论题目。";
   } catch (error: any) {
     console.error("Gemini Topic Error:", error);
@@ -94,15 +69,17 @@ export async function generateTopic(company: string, jobTitle: string): Promise<
   }
 }
 
+/**
+ * Generate comprehensive feedback for the user's performance.
+ * Uses gemini-3-pro-preview for complex reasoning and evaluation.
+ */
 export async function generateFeedback(
   topic: string,
   jobTitle: string,
   history: Message[]
 ): Promise<FeedbackData> {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API_KEY_MISSING");
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
@@ -127,6 +104,7 @@ export async function generateFeedback(
       }
     });
 
+    // Access .text property directly (not a method)
     return JSON.parse(response.text || "{}");
   } catch (error: any) {
     console.error("Gemini Feedback Error:", error);
