@@ -106,10 +106,6 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
-      
-      <footer className="mt-6 text-slate-400 text-[10px] uppercase tracking-widest font-bold">
-        Leaderless Group Discussion Simulator © 2024
-      </footer>
     </div>
   );
 };

@@ -5,7 +5,6 @@ import { SYSTEM_PROMPT_BASE } from "../constants";
 
 /**
  * Generate AI character reply based on discussion history.
- * Uses gemini-3-flash-preview for real-time discussion speed.
  */
 export async function generateAIReply(
   character: Character,
@@ -13,7 +12,6 @@ export async function generateAIReply(
   jobTitle: string,
   history: Message[]
 ): Promise<string> {
-  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
     ${SYSTEM_PROMPT_BASE.replace('{jobTitle}', jobTitle)
@@ -38,7 +36,6 @@ export async function generateAIReply(
       }
     });
 
-    // Access .text property directly (not a method)
     return response.text?.trim() || "我们需要加快进度了。";
   } catch (error: any) {
     console.error("Gemini Reply Error:", error);
@@ -47,13 +44,21 @@ export async function generateAIReply(
 }
 
 /**
- * Generate a discussion topic for the group interview simulation.
- * Uses gemini-3-flash-preview for quick generation.
+ * Generate a structured discussion topic.
  */
 export async function generateTopic(company: string, jobTitle: string): Promise<string> {
-  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `扮演${company}面试官，出1个${jobTitle}岗位的群面案例题。只输出题目内容。严禁任何Markdown标记（不要加粗、不要列表、不要标题）。直接输出一段或几段文字。`;
+  const prompt = `
+    你现在是${company}的高级资深面试官。请为【${jobTitle}】岗位设计一个高质量的群面案例讨论题。
+    要求格式非常专业，必须包含以下几个模块，并用换行分隔：
+
+    【题目背景】：详细说明业务背景或社会背景。
+    【核心任务】：明确列出需要小组讨论解决的问题。
+    【讨论要求】：说明讨论的约束条件（如角色限制、资源限制等）。
+    【时间建议】：建议个人阅读（3分钟）、自由讨论（15-20分钟）、总结陈词（3分钟）。
+
+    注意：请直接输出文字内容，不要使用 Markdown 标题符号（如 #）或加粗符号（如 *），仅使用换行符来区分段落。
+  `;
 
   try {
     const response = await ai.models.generateContent({
@@ -61,7 +66,6 @@ export async function generateTopic(company: string, jobTitle: string): Promise<
       contents: prompt,
     });
 
-    // Access .text property directly (not a method)
     return response.text?.replace(/\*|#|`|>/g, '').trim() || "请手动输入讨论题目。";
   } catch (error: any) {
     console.error("Gemini Topic Error:", error);
@@ -70,15 +74,13 @@ export async function generateTopic(company: string, jobTitle: string): Promise<
 }
 
 /**
- * Generate comprehensive feedback for the user's performance.
- * Uses gemini-3-pro-preview for complex reasoning and evaluation.
+ * Generate comprehensive feedback.
  */
 export async function generateFeedback(
   topic: string,
   jobTitle: string,
   history: Message[]
 ): Promise<FeedbackData> {
-  // Always obtain the API key exclusively from process.env.API_KEY and initialize inside the function
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
@@ -104,7 +106,6 @@ export async function generateFeedback(
       }
     });
 
-    // Access .text property directly (not a method)
     return JSON.parse(response.text || "{}");
   } catch (error: any) {
     console.error("Gemini Feedback Error:", error);
