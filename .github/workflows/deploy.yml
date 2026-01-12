@@ -46,12 +46,22 @@ jobs:
       - name: Set base path
         id: set-base
         run: |
-          if [[ "${{ github.repository }}" == *".github.io" ]]; then
-            echo "base=/" >> $GITHUB_OUTPUT
+          # 从 github.repository 获取仓库名（格式：owner/repo-name）
+          REPO_FULL_NAME="${{ github.repository }}"
+          REPO_NAME="${REPO_FULL_NAME#*/}"  # 提取仓库名部分
+          
+          echo "Repository full name: $REPO_FULL_NAME"
+          echo "Repository name: $REPO_NAME"
+          
+          if [[ "$REPO_FULL_NAME" == *".github.io" ]]; then
+            BASE_PATH="/"
+            echo "Repository is username.github.io, setting base to: $BASE_PATH"
           else
-            REPO_NAME="${{ github.event.repository.name }}"
-            echo "base=/$REPO_NAME/" >> $GITHUB_OUTPUT
+            BASE_PATH="/$REPO_NAME/"
+            echo "Repository name: $REPO_NAME, setting base to: $BASE_PATH"
           fi
+          echo "base=$BASE_PATH" >> $GITHUB_OUTPUT
+          echo "Base path will be: $BASE_PATH"
 
       - name: Build with Vite
         env:
@@ -59,7 +69,16 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # 自动设置 base 路径
           VITE_BASE_PATH: ${{ steps.set-base.outputs.base }}
-        run: pnpm run build
+        run: |
+          echo "Building with VITE_BASE_PATH=$VITE_BASE_PATH"
+          pnpm run build
+          echo "Build completed. Verifying base path in index.html..."
+          if grep -q "$VITE_BASE_PATH" dist/index.html; then
+            echo "✓ Base path verified in index.html"
+          else
+            echo "✗ Warning: Base path not found in index.html"
+            cat dist/index.html
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
