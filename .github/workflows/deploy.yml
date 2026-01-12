@@ -43,14 +43,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set base path
+        id: set-base
+        run: |
+          if [[ "${{ github.repository }}" == *".github.io" ]]; then
+            echo "base=/" >> $GITHUB_OUTPUT
+          else
+            REPO_NAME="${{ github.event.repository.name }}"
+            echo "base=/$REPO_NAME/" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build with Vite
         env:
           # 从 GitHub Secrets 中获取 API Key
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # 设置 base 路径（如果仓库名不是 username.github.io，需要设置）
-          # 如果仓库名是 username.github.io，则不需要设置，使用默认的 '/'
-          # 如果仓库名是其他名称，取消下面的注释并设置正确的路径
-          # VITE_BASE_PATH: '/your-repo-name/'
+          # 自动设置 base 路径
+          VITE_BASE_PATH: ${{ steps.set-base.outputs.base }}
         run: pnpm run build
 
       - name: Setup Pages

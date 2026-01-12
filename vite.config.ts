@@ -19,7 +19,13 @@ const nojekyllPlugin = () => {
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    // 从环境变量获取 base 路径，如果没有则使用默认值 '/'
+    // 如果仓库名是 username.github.io，base 应该是 '/'
+    // 否则 base 应该是 '/repo-name/'
+    const base = env.VITE_BASE_PATH || '/';
+    
     return {
+      base,
       server: {
         port: 3000,
         host: '0.0.0.0',
