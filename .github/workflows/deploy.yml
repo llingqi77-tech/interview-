@@ -71,22 +71,134 @@ jobs:
           VITE_BASE_PATH: ${{ steps.set-base.outputs.base }}
         run: |
           echo "Building with VITE_BASE_PATH=$VITE_BASE_PATH"
+          echo "Expected base path: $VITE_BASE_PATH"
           pnpm run build
           echo "Build completed. Verifying base path in index.html..."
+          echo "=== Full index.html content ==="
+          cat dist/index.html
+          echo "================================"
+          echo ""
+          echo "=== Verifying base path ==="
           if grep -q "$VITE_BASE_PATH" dist/index.html; then
-            echo "✓ Base path verified in index.html"
+            echo "✓ Base path '$VITE_BASE_PATH' found in index.html"
           else
-            echo "✗ Warning: Base path not found in index.html"
-            cat dist/index.html
+            echo "✗ Warning: Base path '$VITE_BASE_PATH' not found in index.html"
+            echo "Actual paths in index.html:"
+            grep -o 'src="[^"]*"' dist/index.html || true
+            grep -o 'href="[^"]*"' dist/index.html || true
           fi
+
+      - name: Create .nojekyll file
+        run: |
+          # 确保 .nojekyll 文件存在（Vite 插件可能已经创建了）
+          touch ./dist/.nojekyll
+          echo "Created/verified .nojekyll file"
+          ls -la ./dist/.nojekyll
+          # 验证文件内容
+          if [ -f ./dist/.nojekyll ]; then
+            echo "✓ .nojekyll file exists"
+          else
+            echo "✗ .nojekyll file missing!"
+            exit 1
+          fi
+
+      - name: Verify dist contents
+        run: |
+          echo "=== dist directory contents ==="
+          ls -la dist/
+          echo ""
+          echo "=== dist/assets directory contents ==="
+          ls -la dist/assets/ || echo "No assets directory"
+          echo ""
+          echo "=== Checking resource paths in index.html ==="
+          grep -o 'src="[^"]*"' dist/index.html || true
+          grep -o 'href="[^"]*"' dist/index.html || true
+          echo ""
+          echo "=== Verifying assets exist ==="
+          ASSETS_DIR="dist/assets"
+          if [ -d "$ASSETS_DIR" ]; then
+            for file in "$ASSETS_DIR"/*; do
+              if [ -f "$file" ]; then
+                echo "✓ Found: $file"
+              fi
+            done
+          fi
+          echo ""
+          echo "=== Verifying resource paths match actual files ==="
+          JS_PATHS=$(grep -o 'src="[^"]*\.js"' dist/index.html | sed 's/src="//g' | sed 's/"//g' || true)
+          CSS_PATHS=$(grep -o 'href="[^"]*\.css"' dist/index.html | sed 's/href="//g' | sed 's/"//g' || true)
+          
+          echo "JS paths found in HTML:"
+          echo "$JS_PATHS" || echo "No JS paths found"
+          echo ""
+          echo "CSS paths found in HTML:"
+          echo "$CSS_PATHS" || echo "No CSS paths found"
+          echo ""
+          
+          # 验证路径中的文件是否存在（去除base路径前缀）
+          BASE_PATH="${{ steps.set-base.outputs.base }}"
+          echo "Base path: $BASE_PATH"
+          for js_path in $JS_PATHS; do
+            # 去除base路径前缀，获取相对路径
+            RELATIVE_JS_PATH=$(echo "$js_path" | sed "s|^$BASE_PATH||")
+            if [ -f "dist/$RELATIVE_JS_PATH" ]; then
+              echo "✓ JS file exists: dist/$RELATIVE_JS_PATH"
+            else
+              echo "✗ JS file NOT found: dist/$RELATIVE_JS_PATH (from path: $js_path)"
+            fi
+          done
+          
+          for css_path in $CSS_PATHS; do
+            RELATIVE_CSS_PATH=$(echo "$css_path" | sed "s|^$BASE_PATH||")
+            if [ -f "dist/$RELATIVE_CSS_PATH" ]; then
+              echo "✓ CSS file exists: dist/$RELATIVE_CSS_PATH"
+            else
+              echo "✗ CSS file NOT found: dist/$RELATIVE_CSS_PATH (from path: $css_path)"
+            fi
+          done
+          echo "================================"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
         # 注意：如果出现 "Resource not accessible by integration" 错误，
         # 需要先在仓库 Settings → Pages 中手动启用 GitHub Actions 作为部署源
 
-      - name: Create .nojekyll file
-        run: touch ./dist/.nojekyll
+      - name: Final verification before upload
+        run: |
+          echo "=== Final verification ==="
+          echo "Base path: ${{ steps.set-base.outputs.base }}"
+          echo ""
+          echo "Checking .nojekyll file:"
+          if [ -f "./dist/.nojekyll" ]; then
+            echo "✓ .nojekyll exists"
+            cat ./dist/.nojekyll || echo "(empty file)"
+          else
+            echo "✗ .nojekyll missing - this will cause GitHub Pages to process files incorrectly!"
+            exit 1
+          fi
+          echo ""
+          echo "Checking index.html:"
+          if [ -f "./dist/index.html" ]; then
+            echo "✓ index.html exists"
+            echo "Content preview:"
+            head -20 ./dist/index.html
+          else
+            echo "✗ index.html missing!"
+            exit 1
+          fi
+          echo ""
+          echo "Checking assets directory:"
+          if [ -d "./dist/assets" ]; then
+            echo "✓ assets directory exists"
+            ASSET_COUNT=$(find ./dist/assets -type f | wc -l)
+            echo "Found $ASSET_COUNT asset files"
+            find ./dist/assets -type f
+          else
+            echo "✗ assets directory missing!"
+            exit 1
+          fi
+          echo ""
+          echo "=== All checks passed ==="
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
