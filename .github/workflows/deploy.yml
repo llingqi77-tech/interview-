@@ -58,6 +58,9 @@ jobs:
         # 注意：如果出现 "Resource not accessible by integration" 错误，
         # 需要先在仓库 Settings → Pages 中手动启用 GitHub Actions 作为部署源
 
+      - name: Create .nojekyll file
+        run: touch ./dist/.nojekyll
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
